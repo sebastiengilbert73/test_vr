@@ -708,6 +708,163 @@
         setTimeout(triggerCrackle, 1000);
       }
     });
+
+    // 6. Comportement des oiseaux IA (voler et se poser)
+    AFRAME.registerComponent('bird-behavior', {
+      init: function () {
+        this.leftWing = this.el.querySelector('.left-wing');
+        this.rightWing = this.el.querySelector('.right-wing');
+        this.state = 'perched';
+        this.perchTimer = 2000 + Math.random() * 4000;
+        this.speed = 2.5 + Math.random() * 1.5;
+        
+        // Générer les points de perche le long du sentier
+        this.perches = [];
+        const pathPoints = [
+          { x: 0, z: 0 },
+          { x: 0, z: -10 },
+          { x: 4, z: -20 },
+          { x: 10, z: -30 },
+          { x: 12, z: -45 },
+          { x: 6, z: -60 },
+          { x: -2, z: -70 },
+          { x: -10, z: -82 },
+          { x: -12, z: -95 },
+          { x: -5, z: -110 },
+          { x: 5, z: -125 },
+          { x: 8, z: -140 },
+          { x: 0, z: -155 }
+        ];
+        
+        pathPoints.forEach(pt => {
+          // Perche arbre gauche
+          this.perches.push(new THREE.Vector3(pt.x - 3.5, 3.5 + Math.random() * 2, pt.z + (Math.random() - 0.5) * 2));
+          // Perche arbre droit
+          this.perches.push(new THREE.Vector3(pt.x + 3.5, 3.5 + Math.random() * 2, pt.z + (Math.random() - 0.5) * 2));
+          // Au sol
+          this.perches.push(new THREE.Vector3(pt.x + (Math.random() - 0.5) * 2.5, 0.05, pt.z + (Math.random() - 0.5) * 2.5));
+          // Sur les poteaux de bois
+          this.perches.push(new THREE.Vector3(pt.x - 1.6, 1.0, pt.z));
+          this.perches.push(new THREE.Vector3(pt.x + 1.6, 1.0, pt.z));
+        });
+        
+        // Position initiale aléatoire
+        const startPerch = this.perches[Math.floor(Math.random() * this.perches.length)];
+        this.el.object3D.position.copy(startPerch);
+        this.currentPosition = this.el.object3D.position;
+        this.targetPosition = new THREE.Vector3();
+      },
+      
+      tick: function (time, timeDelta) {
+        if (this.state === 'perched') {
+          // Ailes au repos
+          if (this.leftWing) this.leftWing.setAttribute('rotation', '0 0 5');
+          if (this.rightWing) this.rightWing.setAttribute('rotation', '0 0 -5');
+          
+          this.perchTimer -= timeDelta;
+          if (this.perchTimer <= 0) {
+            // Choisir une nouvelle perche à proximité (entre 8 et 25 mètres)
+            const closePerches = this.perches.filter(p => {
+              const dist = this.currentPosition.distanceTo(p);
+              return dist > 8 && dist < 25;
+            });
+            const candidates = closePerches.length > 0 ? closePerches : this.perches;
+            const target = candidates[Math.floor(Math.random() * candidates.length)];
+            
+            this.targetPosition.copy(target);
+            this.state = 'flying';
+            this.speed = 2.2 + Math.random() * 1.8;
+          }
+          
+          // Petit tremblement de tête occasionnel
+          if (Math.random() < 0.005) {
+            this.el.object3D.rotateY((Math.random() - 0.5) * 1.5);
+          }
+        } else if (this.state === 'flying') {
+          // Battement d'ailes rapide
+          const flap = Math.sin(time * 0.035) * 35;
+          if (this.leftWing) this.leftWing.setAttribute('rotation', '0 0 ' + flap);
+          if (this.rightWing) this.rightWing.setAttribute('rotation', '0 0 ' + (-flap));
+          
+          const pos = this.el.object3D.position;
+          const dir = new THREE.Vector3().subVectors(this.targetPosition, pos);
+          const dist = dir.length();
+          
+          if (dist < 0.2) {
+            pos.copy(this.targetPosition);
+            this.state = 'perched';
+            this.perchTimer = 4000 + Math.random() * 8000; // Repos entre 4 et 12 secondes
+          } else {
+            dir.normalize();
+            this.el.object3D.lookAt(this.targetPosition);
+            pos.addScaledVector(dir, this.speed * (timeDelta / 1000));
+          }
+        }
+      }
+    });
+
+    // 7. Générateur d'oiseaux dans la forêt
+    AFRAME.registerComponent('forest-birds', {
+      schema: {
+        count: { type: 'int', default: 8 }
+      },
+      init: function () {
+        const colors = [
+          { body: '#ef4444', wing: '#b91c1c' }, // Rouge cardinal
+          { body: '#3b82f6', wing: '#1d4ed8' }, // Bleu geai
+          { body: '#eab308', wing: '#a16207' }, // Jaune
+          { body: '#78350f', wing: '#451a03' }, // Moineau brun
+          { body: '#10b981', wing: '#047857' }  // Vert
+        ];
+        
+        for (let i = 0; i < this.data.count; i++) {
+          const bird = document.createElement('a-entity');
+          bird.setAttribute('bird-behavior', '');
+          
+          const colorPair = colors[i % colors.length];
+          
+          // Corps
+          const body = document.createElement('a-cone');
+          body.setAttribute('radius-bottom', '0.04');
+          body.setAttribute('radius-top', '0.005');
+          body.setAttribute('height', '0.14');
+          body.setAttribute('rotation', '90 0 0');
+          body.setAttribute('color', colorPair.body);
+          body.setAttribute('material', 'roughness: 0.9');
+          bird.appendChild(body);
+          
+          // Bec
+          const beak = document.createElement('a-cone');
+          beak.setAttribute('radius-bottom', '0.015');
+          beak.setAttribute('radius-top', '0.001');
+          beak.setAttribute('height', '0.035');
+          beak.setAttribute('rotation', '90 0 0');
+          beak.setAttribute('position', '0 0 -0.08');
+          beak.setAttribute('color', '#eab308');
+          bird.appendChild(beak);
+          
+          // Aile gauche
+          const leftWing = document.createElement('a-triangle');
+          leftWing.setAttribute('vertex-a', '0 0 0');
+          leftWing.setAttribute('vertex-b', '-0.14 0 -0.03');
+          leftWing.setAttribute('vertex-c', '-0.14 0 0.03');
+          leftWing.setAttribute('color', colorPair.wing);
+          leftWing.setAttribute('class', 'left-wing');
+          bird.appendChild(leftWing);
+          
+          // Aile droite
+          const rightWing = document.createElement('a-triangle');
+          rightWing.setAttribute('vertex-a', '0 0 0');
+          rightWing.setAttribute('vertex-b', '0.14 0 -0.03');
+          rightWing.setAttribute('vertex-c', '0.14 0 0.03');
+          rightWing.setAttribute('color', colorPair.wing);
+          rightWing.setAttribute('class', 'right-wing');
+          bird.appendChild(rightWing);
+          
+          this.el.appendChild(bird);
+        }
+      }
+    });
   </script>
 </head>
 <body>
@@ -914,6 +1071,9 @@
           <a-light type="point" color="#ea580c" intensity="1.6" distance="9" decay="1.5" position="0 0.4 0"></a-light>
         </a-entity>
 
+        <!-- Oiseaux de la forêt (IA autonome vol/repos) -->
+        <a-entity forest-birds="count: 8"></a-entity>
+
         <!-- Camera Rig (Player) -->
         <a-entity id="rig" position="0 0 0.5" movement-controls="speed: 0.12; fly: false; constrainToNavMesh: false" path-constraint>
           <a-entity camera id="camera" position="0 1.6 0" look-controls="pointerLockEnabled: true">
@@ -921,9 +1081,9 @@
             <a-cursor color="#10b981" radius-inner="0.005" radius-outer="0.01" material="shader: flat; opacity: 0.5"></a-cursor>
           </a-entity>
           
-          <!-- Contrôleurs Oculus Quest (Sticks et interactions) -->
-          <a-entity oculus-touch-controls="hand: left" laser-controls="hand: left" raycaster="objects: .clickable; far: 5"></a-entity>
-          <a-entity oculus-touch-controls="hand: right" laser-controls="hand: right" raycaster="objects: .clickable; far: 5"></a-entity>
+          <!-- Mains virtuelles contrôlées par les manettes Quest 2 (la manette gère les sticks, hand-controls dessine et anime les mains) -->
+          <a-entity id="leftHand" hand-controls="hand: left; handModelStyle: lowPoly; color: #eed5b7" oculus-touch-controls="hand: left; model: false"></a-entity>
+          <a-entity id="rightHand" hand-controls="hand: right; handModelStyle: lowPoly; color: #eed5b7" oculus-touch-controls="hand: right; model: false"></a-entity>
         </a-entity>
 
       </a-scene>
