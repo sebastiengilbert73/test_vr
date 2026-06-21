@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sentier Forestier Réalité Virtuelle - Meta Quest 2</title>
+  
+  <!-- Fichiers locaux -->
+  <link rel="stylesheet" href="./index.css">
+  
+  <!-- A-Frame (Dernière version stable supportant WebXR) -->
+  <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+  
+  <!-- Composant d'environnement A-Frame (Pour générer la forêt) -->
+  <script src="https://unpkg.com/aframe-environment-component@1.3.3/dist/aframe-environment-component.min.js"></script>
+  
+  <!-- A-Frame Extras (Contrôles de mouvement et manettes) -->
+  <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v7.2.0/dist/aframe-extras.min.js"></script>
+  
+  <!-- Bibliothèque QR Code pour le tableau de bord desktop -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+  <!-- Logique JS Locale -->
+  <script type="module" src="./main.js"></script>
+
+  <!-- Déclaration des composants customisés A-Frame -->
+  <script>
+    // 1. Génération du sentier forestier
+    AFRAME.registerComponent('forest-path', {
+      init: function () {
+        const points = [
+          { x: 0, z: 0 },
+          { x: 0, z: -10 },
+          { x: 4, z: -20 },
+          { x: 10, z: -30 },
+          { x: 12, z: -45 },
+          { x: 6, z: -60 },
+          { x: -2, z: -70 },
+          { x: -10, z: -82 },
+          { x: -12, z: -95 },
+          { x: -5, z: -110 },
+          { x: 5, z: -125 },
+          { x: 8, z: -140 },
+          { x: 0, z: -155 }
+        ];
+        
+        this.points = points;
+        this.lanternLights = [];
+        this.lanternBulbs = [];
+        this.drawPath();
+        this.populateBorders();
+
+        this.el.addEventListener('toggle-lanterns', (evt) => {
+          const active = evt.detail.active;
+          this.lanternLights.forEach(l => {
+            l.setAttribute('light', 'intensity', active ? 0.7 : 0);
+            l.setAttribute('visible', active);
+          });
+          this.lanternBulbs.forEach(b => {
+            b.setAttribute('color', active ? '#fcd34d' : '#475569');
+          });
+        });
+      },
+      
+      drawPath: function () {
+        const points = this.points;
+        const pathContainer = this.el;
+        
+        for (let i = 0; i < points.length - 1; i++) {
+          const p1 = points[i];
+          const p2 = points[i+1];
+          
+          const dx = p2.x - p1.x;
+          const dz = p2.z - p1.z;
+          const length = Math.sqrt(dx*dx + dz*dz);
+          
+          const numSteps = Math.ceil(length / 0.8);
+          for (let s = 0; s <= numSteps; s++) {
+            const t = s / numSteps;
+            const x = p1.x + dx * t;
+            const z = p1.z + dz * t;
+            
+            const nx = x + (Math.random() - 0.5) * 0.15;
+            const nz = z + (Math.random() - 0.5) * 0.15;
+            
+            const circle = document.createElement('a-circle');
+            circle.setAttribute('position', nx + ' 0.015 ' + nz);
+            circle.setAttribute('rotation', '-90 0 0');
+            const radius = 1.3 + Math.random() * 0.25;
+            circle.setAttribute('radius', radius);
+            
+            const colors = ['#543d2b', '#4a3321', '#422c1b', '#3d2616'];
+            const color = colors[Math.floor(Math.random() * colors.length)];
+            circle.setAttribute('color', color);
+            circle.setAttribute('material', 'roughness: 0.95; metalness: 0.05');
+            pathContainer.appendChild(circle);
+          }
+        }
+      },
+      
+      populateBorders: function () {
+        const points = this.points;
+        const pathContainer = this.el;
+        
+        for (let i = 0; i < points.length - 1; i++) {
+          const p1 = points[i];
+          const p2 = points[i+1];
+          
+          const dx = p2.x - p1.x;
+          const dz = p2.z - p1.z;
+          const length = Math.sqrt(dx*dx + dz*dz);
+          
+          const px = -dz / length;
+          const pz = dx / length;
+          
+          const numSteps = Math.ceil(length / 3.5);
+          for (let s = 0; s <= numSteps; s++) {
+            const t = s / numSteps;
+            const cx = p1.x + dx * t;
+            const cz = p1.z + dz * t;
+            
+            const offsetDist = 1.6 + Math.random() * 0.3;
+            const leftX = cx + px * offsetDist + (Math.random() - 0.5) * 0.2;
+            const leftZ = cz + pz * offsetDist + (Math.random() - 0.5) * 0.2;
+            
+            const rightX = cx - px * offsetDist + (Math.random() - 0.5) * 0.2;
+            const rightZ = cz - pz * offsetDist + (Math.random() - 0.5) * 0.2;
+            
+            if (s % 2 === 0) {
+              this.createPost(pathContainer, leftX, leftZ, true);
+              this.createRock(pathContainer, rightX, rightZ);
+            } else {
+              this.createPost(pathContainer, rightX, rightZ, false);
+              this.createMushroom(pathContainer, leftX, leftZ);
+            }
+          }
+        }
+      },
+      
+      createPost: function (parent, x, z, hasLantern) {
+        const post = document.createElement('a-cylinder');
+        post.setAttribute('position', x + ' 0.5 ' + z);
+        post.setAttribute('radius', '0.06');
+        post.setAttribute('height', '1.0');
+        post.setAttribute('color', '#3d2516');
+        post.setAttribute('material', 'roughness: 0.95');
+        parent.appendChild(post);
+        
+        if (hasLantern) {
+          const bracket = document.createElement('a-box');
+          bracket.setAttribute('position', x + ' 0.9 ' + z);
+          bracket.setAttribute('width', '0.05');
+          bracket.setAttribute('height', '0.05');
+          bracket.setAttribute('depth', '0.25');
+          bracket.setAttribute('color', '#3d2516');
+          parent.appendChild(bracket);
+          
+          const lantern = document.createElement('a-cylinder');
+          lantern.setAttribute('position', x + ' 0.75 ' + (z + 0.12));
+          lantern.setAttribute('radius', '0.07');
+          lantern.setAttribute('height', '0.2');
+          lantern.setAttribute('color', '#1e293b');
+          parent.appendChild(lantern);
+          
+          const bulb = document.createElement('a-sphere');
+          bulb.setAttribute('position', x + ' 0.72 ' + (z + 0.12));
+          bulb.setAttribute('radius', '0.04');
+          bulb.setAttribute('color', '#fcd34d');
+          bulb.setAttribute('material', 'shader: flat; opacity: 0.95');
+          parent.appendChild(bulb);
+          this.lanternBulbs.push(bulb);
+          
+          const light = document.createElement('a-light');
+          light.setAttribute('type', 'point');
+          light.setAttribute('color', '#fbbf24');
+          light.setAttribute('intensity', '0.7');
+          light.setAttribute('distance', '7');
+          light.setAttribute('decay', '2');
+          light.setAttribute('position', x + ' 0.72 ' + (z + 0.12));
+          parent.appendChild(light);
+          this.lanternLights.push(light);
+        }
+      },
+      
+      createRock: function (parent, x, z) {
+        const rock = document.createElement('a-dodecahedron');
+        rock.setAttribute('position', x + ' 0.15 ' + z);
+        rock.setAttribute('radius', (0.15 + Math.random() * 0.2).toString());
+        rock.setAttribute('color', '#475569');
+        rock.setAttribute('rotation', (Math.random()*360) + ' ' + (Math.random()*360) + ' ' + (Math.random()*360));
+        rock.setAttribute('material', 'roughness: 0.9');
+        parent.appendChild(rock);
+      },
+      
+      createMushroom: function (parent, x, z) {
+        const group = document.createElement('a-entity');
+        group.setAttribute('position', x + ' 0 ' + z);
+        
+        const stem = document.createElement('a-cylinder');
+        stem.setAttribute('position', '0 0.08 0');
+        stem.setAttribute('radius', '0.02');
+        stem.setAttribute('height', '0.16');
+        stem.setAttribute('color', '#e2e8f0');
+        group.appendChild(stem);
+        
+        const cap = document.createElement('a-sphere');
+        cap.setAttribute('position', '0 0.15 0');
+        cap.setAttribute('radius', '0.06');
+        cap.setAttribute('scale', '1 0.6 1');
+        const colors = ['#22d3ee', '#34d399', '#a7f3d0', '#818cf8'];
+        const capColor = colors[Math.floor(Math.random() * colors.length)];
+        cap.setAttribute('color', capColor);
+        cap.setAttribute('material', 'shader: flat; opacity: 0.95');
+        group.appendChild(cap);
+        
+        if (Math.random() < 0.6) {
+          const glow = document.createElement('a-light');
+          glow.setAttribute('type', 'point');
+          glow.setAttribute('color', capColor);
+          glow.setAttribute('intensity', '0.4');
+          glow.setAttribute('distance', '2');
+          glow.setAttribute('position', '0 0.15 0');
+          group.appendChild(glow);
+        }
+        
+        parent.appendChild(group);
+      }
+    });
+
+    // 2. Contrainte physique de chemin (Invisible Wall)
+    AFRAME.registerComponent('path-constraint', {
+      init: function () {
+        this.pathPoints = [
+          { x: 0, z: 0 },
+          { x: 0, z: -10 },
+          { x: 4, z: -20 },
+          { x: 10, z: -30 },
+          { x: 12, z: -45 },
+          { x: 6, z: -60 },
+          { x: -2, z: -70 },
+          { x: -10, z: -82 },
+          { x: -12, z: -95 },
+          { x: -5, z: -110 },
+          { x: 5, z: -125 },
+          { x: 8, z: -140 },
+          { x: 0, z: -155 }
+        ];
+        
+        this.totalLength = 0;
+        this.segmentLengths = [];
+        for (let i = 0; i < this.pathPoints.length - 1; i++) {
+          const p1 = this.pathPoints[i];
+          const p2 = this.pathPoints[i+1];
+          const dx = p2.x - p1.x;
+          const dz = p2.z - p1.z;
+          const len = Math.sqrt(dx*dx + dz*dz);
+          this.segmentLengths.push(len);
+          this.totalLength += len;
+        }
+        
+        this.warningOverlay = document.getElementById('path-warning-overlay');
+        this.maxDistance = 1.7; // Largeur maximale autorisée par rapport au centre du sentier
+      },
+      
+      tick: function () {
+        const position = this.el.object3D.position;
+        const p = { x: position.x, z: position.z };
+        
+        const closest = this.getClosestPointOnPath(p);
+        const dist = closest.distance;
+        
+        let onPath = true;
+        if (dist > this.maxDistance) {
+          onPath = false;
+          
+          // Repousser le joueur vers la limite du sentier
+          const dx = p.x - closest.point.x;
+          const dz = p.z - closest.point.z;
+          const scale = this.maxDistance / dist;
+          
+          position.x = closest.point.x + dx * scale;
+          position.z = closest.point.z + dz * scale;
+          
+          if (this.warningOverlay) {
+            this.warningOverlay.classList.add('visible');
+          }
+        } else {
+          if (this.warningOverlay) {
+            this.warningOverlay.classList.remove('visible');
+          }
+        }
+        
+        // Progression globale
+        let cumulativeDist = 0;
+        for (let i = 0; i < closest.segmentIndex; i++) {
+          cumulativeDist += this.segmentLengths[i];
+        }
+        
+        const segStart = this.pathPoints[closest.segmentIndex];
+        const segEnd = this.pathPoints[closest.segmentIndex + 1];
+        const segDx = segEnd.x - segStart.x;
+        const segDz = segEnd.z - segStart.z;
+        const playerDx = closest.point.x - segStart.x;
+        const playerDz = closest.point.z - segStart.z;
+        
+        const segLen = this.segmentLengths[closest.segmentIndex];
+        let segProgress = 0;
+        if (segLen > 0) {
+          segProgress = (playerDx * segDx + playerDz * segDz) / (segLen * segLen);
+          segProgress = Math.max(0, Math.min(1, segProgress)) * segLen;
+        }
+        
+        cumulativeDist += segProgress;
+        const progressPercent = Math.min(100, Math.max(0, (cumulativeDist / this.totalLength) * 100));
+        
+        const event = new CustomEvent('update-hud', {
+          detail: {
+            distance: Math.max(0, dist),
+            onPath: onPath,
+            progress: progressPercent
+          }
+        });
+        window.dispatchEvent(event);
+      },
+      
+      getClosestPointOnPath: function (p) {
+        let minD = Infinity;
+        let closestPt = { x: 0, z: 0 };
+        let closestSegmentIdx = 0;
+        
+        for (let i = 0; i < this.pathPoints.length - 1; i++) {
+          const a = this.pathPoints[i];
+          const b = this.pathPoints[i+1];
+          
+          const vx = b.x - a.x;
+          const vz = b.z - a.z;
+          const wx = p.x - a.x;
+          const wz = p.z - a.z;
+          
+          const vLenSq = vx * vx + vz * vz;
+          if (vLenSq === 0) continue;
+          
+          let t = (wx * vx + wz * vz) / vLenSq;
+          t = Math.max(0, Math.min(1, t));
+          
+          const cx = a.x + t * vx;
+          const cz = a.z + t * vz;
+          
+          const dx = p.x - cx;
+          const dz = p.z - cz;
+          const dSq = dx * dx + dz * dz;
+          
+          if (dSq < minD) {
+            minD = dSq;
+            closestPt.x = cx;
+            closestPt.z = cz;
+            closestSegmentIdx = i;
+          }
+        }
+        
+        return {
+          point: closestPt,
+          distance: Math.sqrt(minD),
+          segmentIndex: closestSegmentIdx
+        };
+      }
+    });
+
+    // 3. Effet de scintillement du feu de camp
+    AFRAME.registerComponent('campfire-flicker', {
+      init: function () {
+        this.light = this.el.querySelector('a-light');
+        this.initialIntensity = 1.6;
+        this.active = true;
+        
+        this.el.addEventListener('toggle-fire', (evt) => {
+          this.active = evt.detail.active;
+          if (this.light) {
+            this.light.setAttribute('visible', this.active);
+            if (!this.active) {
+              this.light.setAttribute('light', 'intensity', 0);
+            }
+          }
+        });
+      },
+      tick: function (time) {
+        if (!this.light || !this.active) return;
+        const flicker = Math.sin(time / 40) * 0.12 + Math.cos(time / 15) * 0.08 + (Math.random() * 0.1);
+        this.light.setAttribute('light', 'intensity', this.initialIntensity + flicker);
+      }
+    });
+
+    // 4. Décoration du feu de camp à la fin du chemin
+    AFRAME.registerComponent('campfire-decor', {
+      init: function () {
+        const campfireContainer = this.el;
+        this.sparks = [];
+        
+        // Pierres autour du feu
+        const numStones = 10;
+        const radius = 0.7;
+        for (let i = 0; i < numStones; i++) {
+          const angle = (i / numStones) * Math.PI * 2;
+          const sx = Math.cos(angle) * radius + (Math.random() - 0.5) * 0.08;
+          const sz = Math.sin(angle) * radius + (Math.random() - 0.5) * 0.08;
+          
+          const stone = document.createElement('a-dodecahedron');
+          stone.setAttribute('position', sx + ' 0.08 ' + sz);
+          stone.setAttribute('radius', (0.1 + Math.random() * 0.04).toString());
+          stone.setAttribute('color', '#57534e');
+          stone.setAttribute('rotation', (Math.random()*360) + ' ' + (Math.random()*360) + ' ' + (Math.random()*360));
+          campfireContainer.appendChild(stone);
+        }
+        
+        // Bûches de bois croisées
+        const log1 = document.createElement('a-cylinder');
+        log1.setAttribute('position', '0 0.08 0');
+        log1.setAttribute('rotation', '20 45 0');
+        log1.setAttribute('radius', '0.05');
+        log1.setAttribute('height', '0.65');
+        log1.setAttribute('color', '#451a03');
+        campfireContainer.appendChild(log1);
+        
+        const log2 = document.createElement('a-cylinder');
+        log2.setAttribute('position', '0 0.08 0');
+        log2.setAttribute('rotation', '20 -45 0');
+        log2.setAttribute('radius', '0.05');
+        log2.setAttribute('height', '0.65');
+        log2.setAttribute('color', '#451a03');
+        campfireContainer.appendChild(log2);
+        
+        // Flammes stylisées animées
+        const flameGroup = document.createElement('a-entity');
+        flameGroup.setAttribute('position', '0 0.12 0');
+        this.flameGroup = flameGroup;
+        
+        const colors = ['#ef4444', '#f97316', '#f59e0b', '#fef08a'];
+        for (let i = 0; i < 4; i++) {
+          const flame = document.createElement('a-cone');
+          flame.setAttribute('radius-bottom', (0.12 + i*0.02).toString());
+          flame.setAttribute('radius-top', '0.01');
+          flame.setAttribute('height', (0.42 + (3-i)*0.06).toString());
+          flame.setAttribute('color', colors[i]);
+          flame.setAttribute('material', 'shader: flat; opacity: 0.85');
+          flame.setAttribute('position', ((Math.random()-0.5)*0.08) + ' ' + (i*0.04) + ' ' + ((Math.random()-0.5)*0.08));
+          flame.setAttribute('rotation', ((Math.random()-0.5)*12) + ' 0 ' + ((Math.random()-0.5)*12));
+          
+          flame.setAttribute('animation', {
+            property: 'scale',
+            to: '1.15 1.3 1.15',
+            dir: 'alternate',
+            dur: 280 + i*110,
+            loop: true,
+            easing: 'easeInOutSine'
+          });
+          flameGroup.appendChild(flame);
+        }
+        campfireContainer.appendChild(flameGroup);
+        
+        // Étincelles qui volent
+        for (let i = 0; i < 15; i++) {
+          this.createSpark(campfireContainer, i);
+        }
+        
+        // Bûches pour s'asseoir autour
+        this.createSittingLog(campfireContainer, -1.8, 0, 1.8, 45);
+        this.createSittingLog(campfireContainer, 1.8, 0, -1.8, -45);
+        this.createSittingLog(campfireContainer, 0, 0, 2.2, 90);
+
+        this.el.addEventListener('toggle-fire', (evt) => {
+          const active = evt.detail.active;
+          this.flameGroup.setAttribute('visible', active);
+          this.sparks.forEach(s => s.setAttribute('visible', active));
+        });
+      },
+      
+      createSpark: function (parent, index) {
+        const spark = document.createElement('a-sphere');
+        spark.setAttribute('radius', (0.015 + Math.random()*0.025).toString());
+        spark.setAttribute('color', Math.random() < 0.6 ? '#f97316' : '#fbbf24');
+        spark.setAttribute('material', 'shader: flat; transparent: true; opacity: 0.85');
+        
+        const startX = (Math.random() - 0.5) * 0.35;
+        const startZ = (Math.random() - 0.5) * 0.35;
+        spark.setAttribute('position', startX + ' 0.25 ' + startZ);
+        
+        const toX = startX + (Math.random() - 0.5) * 1.8;
+        const toY = 2.8 + Math.random() * 1.6;
+        const toZ = startZ + (Math.random() - 0.5) * 1.8;
+        
+        const delay = index * 350;
+        const duration = 2000 + Math.random() * 800;
+        
+        spark.setAttribute('animation', {
+          property: 'position',
+          to: toX + ' ' + toY + ' ' + toZ,
+          dur: duration,
+          delay: delay,
+          loop: true,
+          easing: 'easeOutQuad'
+        });
+        
+        spark.setAttribute('animation__fade', {
+          property: 'material.opacity',
+          to: 0,
+          dur: duration,
+          delay: delay,
+          loop: true,
+          easing: 'linear'
+        });
+        
+        parent.appendChild(spark);
+        this.sparks.push(spark);
+      },
+      
+      createSittingLog: function (parent, x, y, z, rotationY) {
+        const sittingLog = document.createElement('a-cylinder');
+        sittingLog.setAttribute('position', x + ' 0.22 ' + z);
+        sittingLog.setAttribute('rotation', '90 ' + rotationY + ' 0');
+        sittingLog.setAttribute('radius', '0.15');
+        sittingLog.setAttribute('height', '1.1');
+        sittingLog.setAttribute('color', '#451a03');
+        sittingLog.setAttribute('material', 'roughness: 0.95');
+        parent.appendChild(sittingLog);
+      }
+    });
+
+    // 5. Synthèse audio procédurale (Wind, Birds, Campfire Crackle)
+    AFRAME.registerComponent('procedural-audio', {
+      init: function () {
+        this.audioCtx = null;
+        this.player = document.getElementById('rig');
+        this.campfire = document.getElementById('campfire');
+        this.fireActive = true;
+        
+        if (this.campfire) {
+          this.campfire.addEventListener('toggle-fire', (evt) => {
+            this.fireActive = evt.detail.active;
+          });
+        }
+        
+        const startAudio = () => {
+          if (this.audioCtx) return;
+          
+          this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          
+          // 1. Démarrer le vent d'ambiance
+          this.createWindNode();
+          
+          // 2. Démarrer les chants d'oiseaux aléatoires
+          this.startBirdsGenerator();
+          
+          // 3. Démarrer le crépitement du feu de camp
+          this.startCampfireGenerator();
+          
+          window.removeEventListener('click', startAudio);
+          window.removeEventListener('keydown', startAudio);
+          window.removeEventListener('touchstart', startAudio);
+        };
+        
+        window.addEventListener('click', startAudio);
+        window.addEventListener('keydown', startAudio);
+        window.addEventListener('touchstart', startAudio);
+      },
+      
+      createWindNode: function () {
+        const ctx = this.audioCtx;
+        const bufferSize = 2 * ctx.sampleRate;
+        const noiseBuffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const output = noiseBuffer.getChannelData(0);
+        
+        for (let i = 0; i < bufferSize; i++) {
+          output[i] = Math.random() * 2 - 1;
+        }
+        
+        const noiseNode = ctx.createBufferSource();
+        noiseNode.buffer = noiseBuffer;
+        noiseNode.loop = true;
+        
+        const filter = ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 280;
+        filter.Q.value = 4;
+        
+        const gainNode = ctx.createGain();
+        gainNode.gain.value = 0.05; // Vent doux
+        
+        noiseNode.connect(filter);
+        filter.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        
+        noiseNode.start();
+        this.modulateWind(filter);
+      },
+      
+      modulateWind: function (filter) {
+        const ctx = this.audioCtx;
+        const lfo = ctx.createOscillator();
+        lfo.type = 'sine';
+        lfo.frequency.value = 0.05; // Modulation lente
+        
+        const lfoGain = ctx.createGain();
+        lfoGain.gain.value = 120;
+        
+        lfo.connect(lfoGain);
+        lfoGain.connect(filter.frequency);
+        
+        lfo.start();
+      },
+      
+      startBirdsGenerator: function () {
+        const triggerChirp = () => {
+          if (!this.audioCtx) return;
+          
+          const ctx = this.audioCtx;
+          const now = ctx.currentTime;
+          
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(900 + Math.random() * 300, now);
+          osc.frequency.exponentialRampToValueAtTime(1600 + Math.random() * 600, now + 0.12);
+          
+          gain.gain.setValueAtTime(0.005, now);
+          gain.gain.linearRampToValueAtTime(0.02, now + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+          
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          
+          osc.start(now);
+          osc.stop(now + 0.13);
+          
+          const nextTime = Math.random() < 0.35 ? 120 : (4000 + Math.random() * 8000);
+          setTimeout(triggerChirp, nextTime);
+        };
+        
+        setTimeout(triggerChirp, 4000);
+      },
+      
+      startCampfireGenerator: function () {
+        const triggerCrackle = () => {
+          if (!this.audioCtx || !this.player || !this.campfire) return;
+          
+          if (!this.fireActive) {
+            setTimeout(triggerCrackle, 200);
+            return;
+          }
+          
+          const ctx = this.audioCtx;
+          const now = ctx.currentTime;
+          
+          const playerPos = this.player.object3D.position;
+          const firePos = this.campfire.object3D.position;
+          
+          const dx = playerPos.x - firePos.x;
+          const dz = playerPos.z - firePos.z;
+          const dist = Math.sqrt(dx * dx + dz * dz);
+          
+          const maxDist = 20; // Rayon d'audibilité du feu
+          if (dist < maxDist) {
+            const volumeScale = (1 - dist / maxDist) * 0.12;
+            
+            // Grondement sourd (basse fréquence)
+            const osc = ctx.createOscillator();
+            const rumbleGain = ctx.createGain();
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(55 + Math.random() * 15, now);
+            
+            const filter = ctx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.value = 100;
+            
+            rumbleGain.gain.setValueAtTime(volumeScale * 0.35, now);
+            rumbleGain.gain.linearRampToValueAtTime(0, now + 0.2);
+            
+            osc.connect(filter);
+            filter.connect(rumbleGain);
+            rumbleGain.connect(ctx.destination);
+            
+            osc.start(now);
+            osc.stop(now + 0.21);
+            
+            // Crépitement aigu (pop)
+            if (Math.random() < 0.65) {
+              const popOsc = ctx.createOscillator();
+              const popGain = ctx.createGain();
+              
+              popOsc.type = 'triangle';
+              popOsc.frequency.setValueAtTime(800 + Math.random() * 2500, now);
+              
+              popGain.gain.setValueAtTime(volumeScale * 0.65, now);
+              popGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.015);
+              
+              popOsc.connect(popGain);
+              popGain.connect(ctx.destination);
+              
+              popOsc.start(now);
+              popOsc.stop(now + 0.02);
+            }
+          }
+          
+          const nextTime = 40 + Math.random() * 200;
+          setTimeout(triggerCrackle, nextTime);
+        };
+        
+        setTimeout(triggerCrackle, 1000);
+      }
+    });
+  </script>
+</head>
+<body>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast">Lien copié !</div>
+
+  <!-- Header principal -->
+  <header>
+    <div class="logo-container">
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/>
+        </svg>
+      </div>
+      <div class="logo-text">
+        <h1>Quest Forest VR</h1>
+        <p>Environnement de Randonnée Virtuelle</p>
+      </div>
+    </div>
+    <div class="status-badge">
+      <div class="status-dot"></div>
+      <span>Serveur HTTPS Actif</span>
+    </div>
+  </header>
+
+  <!-- Dashboard et Scène -->
+  <main class="dashboard">
+    
+    <!-- Panneau de contrôle gauche -->
+    <aside class="control-panel">
+      
+      <div class="panel-section">
+        <h2>A Propos</h2>
+        <p class="description-text">
+          Bienvenue dans votre environnement forestier immersif. Ce projet utilise <strong>WebXR</strong> et <strong>A-Frame</strong> pour s'exécuter directement sur le Meta Quest 2 sans installation. Vous pouvez marcher le long du sentier et rejoindre le feu de camp à la fin.
+        </p>
+      </div>
+
+      <div class="panel-section">
+        <h2>Connexion au Meta Quest 2</h2>
+        <p class="description-text" style="margin-bottom: 0.5rem;">
+          Entrez cette adresse dans le <strong>Navigateur Meta Quest</strong> de votre casque :
+        </p>
+        <div class="ip-list">
+          <div class="ip-card">
+            <span class="ip-label">Adresse Principale</span>
+            <span class="ip-value" id="primary-ip-value">Détection...</span>
+            <button class="copy-btn" title="Copier le lien">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1z"/>
+                <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0z"/>
+              </svg>
+            </button>
+          </div>
+          <div id="secondary-ips-list"></div>
+        </div>
+        
+        <div class="qr-container">
+          <span class="ip-label" style="font-size: 0.7rem;">Scannez avec un appareil compatible</span>
+          <div class="qr-placeholder" id="qrcode">
+            <span style="font-size: 0.8rem; color: var(--text-muted);">Génération du QR Code...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Section Contrôle Vocal -->
+      <div class="panel-section">
+        <h2>Contrôle Vocal (Micro PC)</h2>
+        <p class="description-text" style="margin-bottom: 0.75rem;">
+          Activez le micro de votre ordinateur pour commander la forêt par la voix (commandes : <em>"jour", "nuit", "allume le feu", "éteins le feu", "lanternes", "téléportation", "début"</em>).
+        </p>
+        <div class="voice-control-container">
+          <div class="voice-btn-wrapper">
+            <button id="voice-trigger-btn" class="voice-btn" title="Activer le contrôle vocal">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+              </svg>
+            </button>
+            <div class="voice-wave voice-wave-1"></div>
+            <div class="voice-wave voice-wave-2"></div>
+          </div>
+          <span id="voice-status-text" class="voice-status-text">Micro désactivé</span>
+          <div class="voice-command-display">
+            <div id="voice-command-content">
+              <span class="voice-command-label">Dites une commande...</span>
+            </div>
+          </div>
+          <div class="voice-fallback-buttons" style="margin-top: 0.75rem; width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+            <button class="control-btn" data-command="jour" title="Passer en mode jour">☀️ Jour</button>
+            <button class="control-btn" data-command="nuit" title="Passer en mode nuit">🌙 Nuit</button>
+            <button class="control-btn" data-command="allume le feu" title="Allumer le feu de camp">🔥 Allumer Feu</button>
+            <button class="control-btn" data-command="eteins le feu" title="Éteindre le feu de camp">💨 Éteindre Feu</button>
+            <button class="control-btn" data-command="lanterne" title="Basculer l'état des lanternes">💡 Lanternes</button>
+            <button class="control-btn" data-command="fin" title="Se téléporter au feu de camp">🏕️ Aller Fin</button>
+            <button class="control-btn" data-command="debut" style="grid-column: span 2;" title="Retourner au point de départ">🥾 Retour Départ</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <h2>Instructions de configuration</h2>
+        <div class="steps-list">
+          <div class="step-item">
+            <div class="step-num">1</div>
+            <div><strong>Même Wi-Fi :</strong> Assurez-vous que l'ordinateur et le casque Quest 2 sont sur la même box/Wi-Fi.</div>
+          </div>
+          <div class="step-item">
+            <div class="step-num">2</div>
+            <div><strong>Alerte SSL :</strong> Le certificat HTTPS est auto-signé pour le développement local. Dans le casque, cliquez sur <em>Paramètres avancés</em> puis <em>Continuer</em> lors de l'alerte de sécurité.</div>
+          </div>
+          <div class="step-item">
+            <div class="step-num">3</div>
+            <div><strong>Activer la VR :</strong> Cliquez sur le bouton <strong>"Enter VR"</strong> en bas à droite de l'écran du casque pour entrer dans le sentier.</div>
+          </div>
+          <div class="step-item">
+            <div class="step-num">4</div>
+            <div><strong>Son :</strong> Cliquez n'importe où sur l'écran (sur PC ou casque) pour activer le son de la forêt et du feu.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-section">
+        <h2>Contrôles du jeu</h2>
+        <div class="controls-list">
+          <div class="control-item">
+            <span class="control-key">Joystick Gauche / WASD</span>
+            <span class="control-action">Marcher dans la forêt</span>
+          </div>
+          <div class="control-item">
+            <span class="control-key">Joystick Droit / Souris</span>
+            <span class="control-action">Regarder autour</span>
+          </div>
+          <div class="control-item">
+            <span class="control-key">Sentier Unique</span>
+            <span class="control-action">Physique bloquée hors du chemin</span>
+          </div>
+          <div class="control-item">
+            <span class="control-key">Fin du sentier</span>
+            <span class="control-action">Feu de camp et clairière à 150m</span>
+          </div>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- Zone de prévisualisation de la Scène 3D -->
+    <section class="scene-container">
+      
+      <!-- HUD d'information sur la prévisualisation desktop -->
+      <div class="hud-overlay">
+        <div class="hud-item">
+          <span class="hud-label">Statut :</span>
+          <span class="hud-value" id="hud-status-value">Chargement...</span>
+        </div>
+        <div class="hud-item">
+          <span class="hud-label">Déviation sentier :</span>
+          <span class="hud-value" id="hud-dist-value">0.0m</span>
+        </div>
+        <div class="hud-item">
+          <span class="hud-label">Progression sentier :</span>
+          <span class="hud-value" id="hud-progress-value">0%</span>
+        </div>
+      </div>
+
+      <!-- Alerte de sortie de chemin pour le mode immersif (Quest et PC) -->
+      <div id="path-warning-overlay">
+        Restez sur le sentier !<br>
+        <span style="font-size: 0.9rem; font-weight: 400; text-transform: none;">La forêt est trop dense pour y pénétrer.</span>
+      </div>
+
+      <!-- Scène 3D A-Frame -->
+      <a-scene embedded="true" renderer="colorManagement: true; antialias: true;" procedural-audio>
+        
+        <!-- Chargement de l'environnement forestier -->
+        <a-entity environment="preset: forest; 
+                               lighting: none; 
+                               dressingAmount: 180; 
+                               dressingColor: #064e3b; 
+                               groundColor: #052e16; 
+                               horizonColor: #020617; 
+                               skyColor: #0b1329; 
+                               skyType: gradient;
+                               shadow: false;
+                               grid: none;
+                               ground: spikes;
+                               groundYScale: 0.8;
+                               dressingScale: 1.5;
+                               dressingOnPlayground: false"></a-entity>
+
+        <!-- Lumière ambiante douce pour la nuit étoilée -->
+        <a-entity id="ambient-light" light="type: ambient; color: #1e293b; intensity: 0.35"></a-entity>
+        
+        <!-- Lune lointaine directionnelle -->
+        <a-entity id="moon-light" light="type: directional; color: #bae6fd; intensity: 0.25; castShadow: false" position="15 35 15"></a-entity>
+
+        <!-- Conteneur pour le sentier et la décoration du sentier (posts, lanternes, etc.) -->
+        <a-entity id="trail" forest-path></a-entity>
+
+        <!-- Feu de camp et clairière de fin -->
+        <a-entity id="campfire" position="0 0.05 -155" campfire-decor campfire-flicker>
+          <!-- Lumière scintillante du feu -->
+          <a-light type="point" color="#ea580c" intensity="1.6" distance="9" decay="1.5" position="0 0.4 0"></a-light>
+        </a-entity>
+
+        <!-- Camera Rig (Player) -->
+        <a-entity id="rig" position="0 0 0.5" movement-controls="speed: 0.12; fly: false; constrainToNavMesh: false" path-constraint>
+          <a-entity camera id="camera" position="0 1.6 0" look-controls="pointerLockEnabled: true">
+            <!-- Pointeur curseur pour interagir sur ordinateur -->
+            <a-cursor color="#10b981" radius-inner="0.005" radius-outer="0.01" material="shader: flat; opacity: 0.5"></a-cursor>
+          </a-entity>
+          
+          <!-- Contrôleurs Oculus Quest (Sticks et interactions) -->
+          <a-entity oculus-touch-controls="hand: left" laser-controls="hand: left" raycaster="objects: .clickable; far: 5"></a-entity>
+          <a-entity oculus-touch-controls="hand: right" laser-controls="hand: right" raycaster="objects: .clickable; far: 5"></a-entity>
+        </a-entity>
+
+      </a-scene>
+
+    </section>
+
+  </main>
+
+</body>
+</html>
